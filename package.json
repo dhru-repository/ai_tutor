@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@google/genai": "latest",
-    "express": "^4.19.0"
+    "express": "^4.19.0",
+    "pg": "^8.11.3"
   }
 }
