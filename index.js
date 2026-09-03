@@ -2,7 +2,7 @@ import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import pkg from 'pg'; // NEW: PostgreSQL driver
+import pkg from 'pg'; 
 const { Pool } = pkg;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,14 +11,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
-// --- DATABASE SETUP ---
-// Connect to Render's PostgreSQL using the URL in the environment variables
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } // Required for Render's cloud databases
+    ssl: { rejectUnauthorized: false }
 });
 
-// Auto-create the table if it doesn't exist
+// Auto-create table and safely add student & session tracking
 async function initDB() {
     try {
         await pool.query(`
@@ -27,49 +25,70 @@ async function initDB() {
                 timestamp TIMESTAMPTZ DEFAULT NOW(),
                 user_input TEXT,
                 ai_output TEXT
-            )
+            );
         `);
-        console.log("Database table verified/created.");
+        
+        await pool.query(`
+            ALTER TABLE chat_logs 
+            ADD COLUMN IF NOT EXISTS student_id VARCHAR(255),
+            ADD COLUMN IF NOT EXISTS session_id VARCHAR(255);
+        `);
+        console.log("Database table and columns verified.");
     } catch (error) {
         console.error("DB Initialization error:", error);
     }
 }
 initDB();
-// ----------------------
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- NEW DB LOGGING LOGIC ---
-async function logInteraction(userInput, aiOutput) {
+// Saves to DB using BOTH student ID and session ID
+async function logInteraction(studentId, sessionId, userInput, aiOutput) {
     try {
         await pool.query(
-            'INSERT INTO chat_logs (user_input, ai_output) VALUES ($1, $2)',
-            [userInput, aiOutput]
+            'INSERT INTO chat_logs (student_id, session_id, user_input, ai_output) VALUES ($1, $2, $3, $4)',
+            [studentId || 'Unknown', sessionId || 'Unknown', userInput, aiOutput]
         );
-        console.log(`[DB LOGGED] Input saved to permanent storage.`);
     } catch (err) {
         console.error("Failed to write to DB:", err);
     }
 }
-// ----------------------------
 
+// 1. ENDPOINT: Handle new messages and AI responses
 app.post('/api/tutor', async (req, res) => {
     try {
-        const { message } = req.body;
-        
+        const { message, studentId, sessionId } = req.body;
+        const safeStudentId = studentId || 'Unknown';
+        const safeSessionId = sessionId || 'Unknown';
+
+        // Fetch context for the AI (last 2 rows = 4 messages) for this specific session
+        const historyResult = await pool.query(
+            'SELECT user_input, ai_output FROM chat_logs WHERE student_id = $1 AND session_id = $2 ORDER BY timestamp DESC LIMIT 2',
+            [safeStudentId, safeSessionId]
+        );
+        const chronologicalHistory = historyResult.rows.reverse();
+
+        const chatContext = [];
+        for (const row of chronologicalHistory) {
+            chatContext.push({ role: 'user', parts: [{ text: row.user_input }] });
+            chatContext.push({ role: 'model', parts: [{ text: row.ai_output }] });
+        }
+        chatContext.push({ role: 'user', parts: [{ text: message }] });
+
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `You are an expert, encouraging online tutor. Answer the student's query clearly and helpfully: ${message}`
+            contents: chatContext,
+            config: {
+                systemInstruction: "You are an expert, encouraging online tutor for a CSS-100 Computational Thinking and Technical Writing course. Answer the student's query clearly and helpfully."
+            }
         });
 
         const replyText = response.text;
 
-        // Save to PostgreSQL before sending response
-        await logInteraction(message, replyText);
-
+        await logInteraction(safeStudentId, safeSessionId, message, replyText);
         res.json({ reply: replyText });
     } catch (error) {
         console.error('Error generating content:', error);
@@ -77,18 +96,35 @@ app.post('/api/tutor', async (req, res) => {
     }
 });
 
-// --- UPDATED EXPORT ENDPOINT ---
-// Access this by going to yoursite.onrender.com/api/logs to view the DB rows
+// 2. ENDPOINT: Fetch full UI chat history when a student returns to the page
+app.get('/api/history', async (req, res) => {
+    try {
+        const { studentId, sessionId } = req.query;
+        if (!studentId || !sessionId) {
+            return res.json([]);
+        }
+
+        // Fetch ALL rows for this specific session to redraw the screen (Ascending order)
+        const result = await pool.query(
+            'SELECT user_input, ai_output FROM chat_logs WHERE student_id = $1 AND session_id = $2 ORDER BY timestamp ASC',
+            [studentId, sessionId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Error retrieving UI history:", error);
+        res.status(500).json([]);
+    }
+});
+
+// 3. ENDPOINT: Your admin raw logs viewer
 app.get('/api/logs', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM chat_logs ORDER BY timestamp DESC');
         res.json(result.rows);
     } catch (error) {
-        console.error("Error retrieving logs:", error);
-        res.status(500).send("Error retrieving logs from database.");
+        res.status(500).send("Error retrieving logs.");
     }
 });
-// -------------------------------
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
