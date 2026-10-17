@@ -1,187 +1,597 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Tutor</title>
+
     <style>
-        body { 
-            font-family: system-ui, -apple-system, sans-serif; 
-            max-width: 600px; 
-            margin: 2rem auto; 
-            padding: 1rem; 
-            background: #f9f9f9;
-        }
-        .header-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .badge-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        #identity-badge {
-            font-size: 0.9rem;
-            color: #555;
-            background: #e8eaed;
-            padding: 0.25rem 0.75rem;
-            border-radius: 16px;
-        }
-        #new-chat-btn {
-            padding: 0.25rem 0.75rem;
-            background: #34a853;
-            color: white;
-            border: none;
-            border-radius: 16px;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        #new-chat-btn:hover { background: #2b8c45; }
-        #chatbox { 
-            height: 400px; 
-            background: white;
-            border: 1px solid #ddd; 
-            padding: 1rem; 
-            overflow-y: auto; 
-            margin-bottom: 1rem; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .user-msg { color: #1a73e8; text-align: right; margin-bottom: 1rem; }
-        .ai-msg { color: #202124; text-align: left; margin-bottom: 1rem; border-left: 3px solid #34a853; padding-left: 10px;}
-        form { display: flex; gap: 10px; }
-        input { 
-            flex-grow: 1; 
-            padding: 0.75rem; 
-            border: 1px solid #ddd; 
-            border-radius: 4px; 
-            font-size: 1rem;
-        }
-        .submit-btn { 
-            padding: 0.75rem 1.5rem; 
-            background: #1a73e8; 
-            color: white; 
-            border: none; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            font-size: 1rem;
-        }
-        .submit-btn:hover { background: #1557b0; }
+        
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    width: min(100% - 24px, 980px);
+    margin: 12px auto;
+    padding: 16px;
+    background: #f5f7fb;
+    color: #202124;
+
+    min-height: calc(100dvh - 24px);
+    display: flex;
+    flex-direction: column;
+}
+
+.header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.header-bar h2 {
+    margin: 0;
+    font-size: 1.45rem;
+    font-weight: 700;
+}
+
+.badge-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#identity-badge {
+    font-size: 0.85rem;
+    color: #46505c;
+    background: #e8edf5;
+    padding: 7px 12px;
+    border-radius: 20px;
+    overflow-wrap: anywhere;
+}
+
+#new-chat-btn {
+    padding: 8px 13px;
+    background: #18864b;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+#new-chat-btn:hover {
+    background: #126d3c;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Flexible conversation panel */
+#chatbox {
+    flex: 1 1 460px;
+    min-height: 320px;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    background: white;
+    border: 1px solid #e0e5ed;
+    padding: 20px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(30, 50, 80, 0.06);
+    scroll-behavior: smooth;
+}
+
+/* Student messages */
+.user-msg {
+    align-self: flex-end;
+    max-width: 85%;
+    margin: 0;
+    padding: 11px 14px;
+    color: #174ea6;
+    background: #e8f0fe;
+    border-radius: 16px 16px 4px 16px;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+/* Tutor messages */
+.ai-msg {
+    align-self: flex-start;
+    max-width: 92%;
+    margin: 0;
+    padding: 12px 15px;
+    color: #202124;
+    background: #f0f5f1;
+    border-left: 3px solid #34a853;
+    border-radius: 4px 16px 16px 16px;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.error-msg {
+    color: #b3261e;
+    background: #fcebea;
+    border-left-color: #d93025;
+}
+
+/* Preserve multiline text and pasted code formatting */
+.message-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+}
+
+/* Composer */
+#chat-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+#userInput {
+    flex: 1;
+    min-width: 0;
+    min-height: 54px;
+    max-height: 240px;
+    resize: vertical;
+    padding: 13px 14px;
+    border: 1px solid #ccd3dd;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.5;
+    background: white;
+    color: #202124;
+}
+
+#userInput:focus {
+    outline: 2px solid #1a73e8;
+    outline-offset: 1px;
+    border-color: #1a73e8;
+}
+
+.submit-btn {
+    flex-shrink: 0;
+    min-height: 48px;
+    padding: 12px 22px;
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.submit-btn:hover {
+    background: #1557b0;
+}
+
+.keyboard-help {
+    color: #697386;
+    font-size: 0.8rem;
+    margin: 8px 2px 0;
+}
+
+/* Tablets and mobile phones */
+@media (max-width: 600px) {
+    body {
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 10px;
+    }
+
+    .header-bar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .header-bar h2 {
+        font-size: 1.3rem;
+    }
+
+    .badge-container {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    #chatbox {
+        flex: 1 1 auto;
+        min-height: 240px;
+        padding: 12px;
+        gap: 10px;
+        margin-bottom: 10px;
+        border-radius: 12px;
+    }
+
+    .user-msg,
+    .ai-msg {
+        max-width: 95%;
+        padding: 10px 12px;
+        font-size: 0.95rem;
+    }
+
+    #chat-form {
+        gap: 7px;
+    }
+
+    #userInput {
+        min-height: 50px;
+        padding: 11px;
+        border-radius: 10px;
+    }
+
+    .submit-btn {
+        min-height: 48px;
+        padding: 11px 14px;
+        border-radius: 10px;
+    }
+
+    .keyboard-help {
+        font-size: 0.75rem;
+    }
+}
+
+/* Very narrow phones */
+@media (max-width: 360px) {
+    body {
+        padding: 7px;
+    }
+
+    #chatbox {
+        padding: 9px;
+    }
+
+    #userInput {
+        padding: 9px;
+    }
+
+    .submit-btn {
+        padding: 10px;
+    }
+}
+
     </style>
 </head>
+
 <body>
     <div class="header-bar">
         <h2>CSS-100 Tutor</h2>
+
         <div class="badge-container">
             <div id="identity-badge">Student: Unknown</div>
-            <button id="new-chat-btn">New Chat</button>
+            <button type="button" id="new-chat-btn">New Chat</button>
         </div>
     </div>
-    <div id="chatbox"></div>
+
+    <div id="chatbox" aria-live="polite" aria-label="Chat messages"></div>
+
     <form id="chat-form">
-        <input type="text" id="userInput" placeholder="Ask a question..." required>
-        <button type="submit" class="submit-btn">Ask</button>
+        <textarea
+            id="userInput"
+            placeholder="Ask a question or paste your code..."
+            aria-label="Your message"
+            rows="2"
+            maxlength="20000"
+            required
+        ></textarea>
+
+        <button type="submit" class="submit-btn" id="submit-btn">
+            Ask
+        </button>
     </form>
 
+    <p class="keyboard-help">
+        Press Enter to send. Press Shift + Enter to start a new line.
+    </p>
+
     <script>
-        // --- IDENTITY & SESSION MANAGEMENT ---
+        // ======================================================
+        // 1. STUDENT IDENTITY AND SESSION MANAGEMENT
+        // ======================================================
+
         let currentStudent = localStorage.getItem('student_id');
+
         const urlParams = new URLSearchParams(window.location.search);
         const magicUser = urlParams.get('user');
 
-        // 1. Resolve Student ID
         if (magicUser) {
-            currentStudent = magicUser;
+            currentStudent = magicUser.trim() || 'Anonymous';
+
             localStorage.setItem('student_id', currentStudent);
-            window.history.replaceState({}, document.title, window.location.pathname);
+
+            // Remove the user parameter from the visible URL.
+            window.history.replaceState(
+                {},
+                document.title,
+                window.location.pathname
+            );
         } else if (!currentStudent) {
-            currentStudent = prompt("Welcome to CSS-100! Please enter your Name or Student ID:");
-            if (!currentStudent || currentStudent.trim() === "") currentStudent = "Anonymous";
+            currentStudent = prompt(
+                'Welcome to CSS-100! Please enter your Name or Student ID:'
+            );
+
+            if (!currentStudent || !currentStudent.trim()) {
+                currentStudent = 'Anonymous';
+            } else {
+                currentStudent = currentStudent.trim();
+            }
+
             localStorage.setItem('student_id', currentStudent);
         }
-        document.getElementById('identity-badge').innerText = `Student: ${currentStudent}`;
 
-        // 2. Resolve Session ID
+        document.getElementById('identity-badge').textContent =
+            `Student: ${currentStudent}`;
+
         let currentSession = localStorage.getItem('session_id');
+
+        function createSessionId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+
+            return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        }
+
         if (!currentSession) {
-            currentSession = Date.now().toString(); // Creates a timestamp like "1725336210"
+            currentSession = createSessionId();
             localStorage.setItem('session_id', currentSession);
         }
 
         const chatbox = document.getElementById('chatbox');
-
-        // --- UI RECOVERY (Load previous chats on start) ---
-        async function loadPreviousChats() {
-            try {
-                const res = await fetch(`/api/history?studentId=${encodeURIComponent(currentStudent)}&sessionId=${encodeURIComponent(currentSession)}`);
-                const history = await res.json();
-                
-                chatbox.innerHTML = ''; // Clear box just in case
-                
-                history.forEach(row => {
-                    chatbox.innerHTML += `<div class="user-msg"><b>You:</b> <br> ${row.user_input}</div>`;
-                    const formattedReply = row.ai_output.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-                    chatbox.innerHTML += `<div class="ai-msg"><b>Tutor:</b> <br> ${formattedReply}</div>`;
-                });
-                chatbox.scrollTop = chatbox.scrollHeight;
-            } catch (error) {
-                console.error("Could not load history.");
-            }
-        }
-        
-        // Fire the load function immediately when the page opens
-        loadPreviousChats();
-
-        // --- NEW CHAT BUTTON LOGIC ---
-        document.getElementById('new-chat-btn').addEventListener('click', () => {
-            // Generate a fresh session ID and save it
-            currentSession = Date.now().toString();
-            localStorage.setItem('session_id', currentSession);
-            // Wipe the screen clean (data is safe in SQL)
-            chatbox.innerHTML = '';
-        });
-
-        // --- CHAT SUBMISSION ---
         const form = document.getElementById('chat-form');
         const input = document.getElementById('userInput');
+        const submitButton = document.getElementById('submit-btn');
+        const newChatButton = document.getElementById('new-chat-btn');
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        let isSending = false;
+
+        // ======================================================
+        // 2. SAFE MESSAGE RENDERING
+        // ======================================================
+
+        // Render simple Markdown bold formatting without interpreting
+        // student messages or AI output as executable HTML.
+        function appendFormattedText(container, text) {
+            const safeText = String(text ?? '');
+
+            const segments = safeText.split(/(\*\*[\s\S]+?\*\*)/g);
+
+            for (const segment of segments) {
+                if (
+                    segment.length >= 4 &&
+                    segment.startsWith('**') &&
+                    segment.endsWith('**')
+                ) {
+                    const bold = document.createElement('strong');
+                    bold.textContent = segment.slice(2, -2);
+                    container.appendChild(bold);
+                } else {
+                    container.appendChild(
+                        document.createTextNode(segment)
+                    );
+                }
+            }
+        }
+
+        function appendMessage(className, label, text) {
+            const messageElement = document.createElement('div');
+            messageElement.className = className;
+
+            const labelElement = document.createElement('strong');
+            labelElement.textContent = `${label}:`;
+
+            const messageText = document.createElement('span');
+            messageText.className = 'message-text';
+
+            messageElement.appendChild(labelElement);
+            messageElement.appendChild(document.createElement('br'));
+
+            appendFormattedText(messageText, text);
+
+            messageElement.appendChild(messageText);
+            chatbox.appendChild(messageElement);
+
+            chatbox.scrollTop = chatbox.scrollHeight;
+
+            return messageElement;
+        }
+
+        function clearChatDisplay() {
+            chatbox.replaceChildren();
+        }
+
+        // ======================================================
+        // 3. RESTORE PREVIOUS CHAT HISTORY
+        // ======================================================
+
+        async function loadPreviousChats() {
+            try {
+                const query = new URLSearchParams({
+                    studentId: currentStudent,
+                    sessionId: currentSession
+                });
+
+                const response = await fetch(`/api/history?${query}`);
+
+                if (!response.ok) {
+                    throw new Error('Could not retrieve chat history.');
+                }
+
+                const history = await response.json();
+
+                clearChatDisplay();
+
+                for (const row of history) {
+                    appendMessage(
+                        'user-msg',
+                        'You',
+                        row.user_input ?? ''
+                    );
+
+                    appendMessage(
+                        'ai-msg',
+                        'Tutor',
+                        row.ai_output ?? ''
+                    );
+                }
+
+                chatbox.scrollTop = chatbox.scrollHeight;
+            } catch (error) {
+                console.error('Could not load chat history:', error);
+            }
+        }
+
+        // Keep a reference so a new message cannot be erased by
+        // a history load that is still in progress.
+        const historyPromise = loadPreviousChats();
+
+        // ======================================================
+        // 4. START A NEW CHAT
+        // ======================================================
+
+        newChatButton.addEventListener('click', () => {
+            if (isSending) {
+                return;
+            }
+
+            currentSession = createSessionId();
+
+            localStorage.setItem('session_id', currentSession);
+
+            clearChatDisplay();
+            input.value = '';
+            input.focus();
+        });
+
+        // ======================================================
+        // 5. KEYBOARD BEHAVIOR
+        // ======================================================
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || event.isComposing) {
+                return;
+            }
+
+            // Shift + Enter: allow the textarea to insert a newline.
+            if (event.shiftKey) {
+                return;
+            }
+
+            // Enter without Shift: submit the message.
+            event.preventDefault();
+
+            if (!isSending) {
+                form.requestSubmit();
+            }
+        });
+
+        // ======================================================
+        // 6. SUBMIT MESSAGE TO THE TUTOR
+        // ======================================================
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            if (isSending) {
+                return;
+            }
+
+            // Keep the original text, including internal line breaks
+            // and indentation that may be important in source code.
             const message = input.value;
+
+            if (!message.trim()) {
+                input.focus();
+                return;
+            }
+
+            const submittedStudent = currentStudent;
+            const submittedSession = currentSession;
+
+            isSending = true;
+            submitButton.disabled = true;
+            newChatButton.disabled = true;
+            submitButton.textContent = 'Thinking...';
+
             input.value = '';
 
-            chatbox.innerHTML += `<div class="user-msg"><b>You:</b> <br> ${message}</div>`;
-            chatbox.scrollTop = chatbox.scrollHeight;
-            
             try {
-                const res = await fetch('/api/tutor', {
+                // Let the initial history load finish before appending
+                // a new message to the chat display.
+                await historyPromise;
+
+                appendMessage('user-msg', 'You', message);
+
+                const response = await fetch('/api/tutor', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    // Send BOTH the student and the current session to the backend
-                    body: JSON.stringify({ 
-                        message: message, 
-                        studentId: currentStudent,
-                        sessionId: currentSession 
-                    }) 
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message,
+                        studentId: submittedStudent,
+                        sessionId: submittedSession
+                    })
                 });
-                
-                const data = await res.json();
-                
-                if(data.reply) {
-                    const formattedReply = data.reply.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-                    chatbox.innerHTML += `<div class="ai-msg"><b>Tutor:</b> <br> ${formattedReply}</div>`;
-                } else {
-                    chatbox.innerHTML += `<div class="ai-msg" style="color:red;"><b>Error:</b> ${data.error}</div>`;
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok || !data.reply) {
+                    appendMessage(
+                        'ai-msg error-msg',
+                        'Error',
+                        data.error || 'The tutor could not answer. Please try again.'
+                    );
+
+                    return;
                 }
+
+                // The backend may return the model used by the fallback
+                // chain. Keep the main student-facing label simple.
+                appendMessage('ai-msg', 'Tutor', data.reply);
+
+                console.log('Tutor model used:', data.model || 'Not reported');
             } catch (error) {
-                chatbox.innerHTML += `<div class="ai-msg" style="color:red;"><b>Error:</b> Could not connect to the server.</div>`;
+                console.error('Tutor request failed:', error);
+
+                appendMessage(
+                    'ai-msg error-msg',
+                    'Error',
+                    'Could not connect to the server. Please check your connection and try again.'
+                );
+            } finally {
+                isSending = false;
+                submitButton.disabled = false;
+                newChatButton.disabled = false;
+                submitButton.textContent = 'Ask';
+                input.disabled = false;
+                input.focus();
             }
-            
-            chatbox.scrollTop = chatbox.scrollHeight;
         });
+
+        // Keep the text field available while the request is running.
+        // Only the submit button is locked to prevent duplicate requests.
     </script>
 </body>
 </html>
